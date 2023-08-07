@@ -895,7 +895,7 @@ public class PlayFragment extends BaseLazyFragment {
                 lines[i] = "";
             }
         }
-        return StringUtils.join(lines, linesplit);
+        return String.join(linesplit, lines);
     }
 
     void playUrl(String url, HashMap<String, String> headers) {
