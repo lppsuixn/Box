@@ -117,6 +117,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -127,6 +128,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -147,6 +149,8 @@ import master.flame.danmaku.danmaku.model.android.Danmakus;
 import master.flame.danmaku.danmaku.parser.BaseDanmakuParser;
 import master.flame.danmaku.danmaku.parser.IDataSource;
 import me.jessyan.autosize.AutoSize;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import tv.danmaku.ijk.media.player.IMediaPlayer;
 import tv.danmaku.ijk.media.player.IjkTimedText;
 import xyz.doikki.videoplayer.player.AbstractPlayer;
@@ -577,6 +581,7 @@ public class PlayFragment extends BaseLazyFragment {
                 searchSubtitleDialog.setSubtitleLoader(new SearchSubtitleDialog.SubtitleLoader() {
                     @Override
                     public void loadSubtitle(Subtitle subtitle) {
+                        if (!isAdded()) return;
                         requireActivity().runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
@@ -791,6 +796,7 @@ public class PlayFragment extends BaseLazyFragment {
     }
 
     void setTip(String msg, boolean loading, boolean err) {
+        if (!isAdded()) return;
         requireActivity().runOnUiThread(new Runnable() { //影魔
             @Override
             public void run() {
@@ -810,6 +816,7 @@ public class PlayFragment extends BaseLazyFragment {
 
     void errorWithRetry(String err, boolean finish) {
         if (!autoRetry()) {
+            if (!isAdded()) return;
             requireActivity().runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -892,7 +899,7 @@ public class PlayFragment extends BaseLazyFragment {
                 lines[i] = "";
             }
         }
-        return StringUtils.join(lines, linesplit);
+        return String.join(linesplit, lines);
     }
 
     void playUrl(String url, HashMap<String, String> headers) {
@@ -1012,6 +1019,7 @@ public class PlayFragment extends BaseLazyFragment {
                 });
     }
     void startPlayUrl(String url, HashMap<String, String> headers) {
+        if (!isAdded()) return;
         requireActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -1568,7 +1576,7 @@ public class PlayFragment extends BaseLazyFragment {
         }
         stopLoadWebView(true);
         stopParse();
-        Thunder.stop(); // 停止磁力下载
+        Thunder.stop(true); // 停止磁力下载
     }
 
     private VodInfo mVodInfo;
@@ -1667,7 +1675,7 @@ public class PlayFragment extends BaseLazyFragment {
             }
 
             @Override
-            public void list(String playList) {
+            public void list(Map<Integer, String> urlMap) {
             }
 
             @Override
@@ -1896,6 +1904,7 @@ public class PlayFragment extends BaseLazyFragment {
                             }
                         }
                         if (rs.has("jxFrom")) {
+                            if (!isAdded()) return;
                             requireActivity().runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -1941,6 +1950,7 @@ public class PlayFragment extends BaseLazyFragment {
                             if (rs.has("ua")) {
                                 webUserAgent = rs.optString("ua").trim();
                             }
+                            if (!isAdded()) return;
                             requireActivity().runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -1970,6 +1980,7 @@ public class PlayFragment extends BaseLazyFragment {
                                 }
                             }
                             if (rs.has("jxFrom")) {
+                                if (!isAdded()) return;
                                 requireActivity().runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
@@ -2048,6 +2059,7 @@ public class PlayFragment extends BaseLazyFragment {
     }
 
     void loadUrl(String url) {
+        if (!isAdded()) return;
         requireActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -2081,6 +2093,7 @@ public class PlayFragment extends BaseLazyFragment {
 
     void stopLoadWebView(boolean destroy) {
         if (mActivity == null) return;
+        if (!isAdded()) return;
         requireActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -2174,6 +2187,7 @@ public class PlayFragment extends BaseLazyFragment {
         webView.setFocusableInTouchMode(false);
         webView.clearFocus();
         webView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+        if (!isAdded()) return;
         requireActivity().addContentView(webView, layoutParams);
         /* 添加webView配置 */
         final WebSettings settings = webView.getSettings();
@@ -2318,9 +2332,49 @@ public class PlayFragment extends BaseLazyFragment {
                 }
             }
 
-            return ad || loadFoundCount.get() > 0 ?
-                    AdBlocker.createEmptyResource() :
-                    null;
+            if (ad || loadFoundCount.get() > 0) return AdBlocker.createEmptyResource();
+            try {
+                Request okHttpRequest = new Request.Builder().url(url).build();
+                OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
+                clientBuilder.readTimeout(10000, TimeUnit.MILLISECONDS);
+                clientBuilder.writeTimeout(10000, TimeUnit.MILLISECONDS);
+                clientBuilder.connectTimeout(10000, TimeUnit.MILLISECONDS);
+                okhttp3.Response response = clientBuilder.build().newCall(okHttpRequest).execute();
+
+                final String contentTypeValue = response.header("Content-Type");
+                if (contentTypeValue != null) {
+                    if (contentTypeValue.indexOf("charset=") > 0) {
+                        final String[] contentTypeAndEncoding = contentTypeValue.replace(" ","").split(";");
+                        final String contentType = contentTypeAndEncoding[0];
+                        String charset = null;
+                        if (contentTypeAndEncoding.length >= 2) {
+                            String[] csArray = contentTypeAndEncoding[1].split("=");
+                            if (csArray.length >= 2)
+                                charset = csArray[1];
+                        }
+                        return new WebResourceResponse(contentType, charset, response.body().byteStream());
+                    } else {
+                        return new WebResourceResponse(contentTypeValue, null, response.body().byteStream());
+                    }
+                } else {
+                    String guessMimeType = "application/octet-stream";
+                    if (url.contains(".htm")) {
+                        guessMimeType = "text/html";
+                    } else if (url.contains(".css")) {
+                        guessMimeType = "text/css";
+                    } else if (url.contains(".js")) {
+                        guessMimeType = "application/javascript";
+                    } else if (url.endsWith(".png")) {
+                        guessMimeType = "image/png";
+                    } else if (url.endsWith(".jpg") || url.endsWith(".jpeg")) {
+                        guessMimeType = "image/jpeg";
+                    }
+                    return new WebResourceResponse(guessMimeType, null, response.body().byteStream());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
         }
 
         @Nullable
@@ -2368,6 +2422,7 @@ public class PlayFragment extends BaseLazyFragment {
         webView.setFocusableInTouchMode(false);
         webView.clearFocus();
         webView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+        if (!isAdded()) return;
         requireActivity().addContentView(webView, layoutParams);
         /* 添加webView配置 */
         final XWalkSettings settings = webView.getSettings();
