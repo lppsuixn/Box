@@ -413,6 +413,10 @@ public class PlayFragment extends BaseLazyFragment {
     }
 
     public void initLiveDanmu(){
+        if(danmakuView != null){
+            danmakuView.release();
+            danmakuView = null;
+        }
         danmakuParser = new BaseDanmakuParser() {
             @Override
             protected IDanmakus parse() {
@@ -429,7 +433,10 @@ public class PlayFragment extends BaseLazyFragment {
             }
 
             @Override
-            public void updateTimer(DanmakuTimer danmakuTimer) {
+            public void updateTimer(DanmakuTimer timer) {
+                if (Math.abs(mVideoView.getSpeed()) - 1.0 > 1e-6) {
+                    timer.add((long) (timer.lastInterval() * (mVideoView.getSpeed() - 1)));
+                }
             }
 
             @Override
