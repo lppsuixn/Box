@@ -654,9 +654,9 @@ public class SourceViewModel extends ViewModel {
             spThreadPool.execute(new Runnable() {
                 @Override
                 public void run() {
-                    Spider sp = ApiConfig.get().getCSP(sourceBean);
-                    String json = sp.playerContent(playFlag, url, ApiConfig.get().getVipParseFlags());
+                    Spider sp = ApiConfig.get().getCSP(sourceBean);                    
                     try {
+			String json = sp.playerContent(playFlag, url, ApiConfig.get().getVipParseFlags());    
                         JSONObject result = new JSONObject(json);
                         result.put("key", url);
                         result.put("proKey", progressKey);
@@ -793,6 +793,7 @@ public class SourceViewModel extends ViewModel {
             xstream.autodetectAnnotations(true);
             xstream.processAnnotations(AbsSortXml.class);
             xstream.ignoreUnknownElements();
+            xstream.allowTypes(new Class[]{AbsSortXml.class});
             AbsSortXml data = (AbsSortXml) xstream.fromXML(xml);
             for (MovieSort.SortData sort : data.classes.sortList) {
                 if (sort.filters == null) {
@@ -919,6 +920,7 @@ public class SourceViewModel extends ViewModel {
             xstream.autodetectAnnotations(true);
             xstream.processAnnotations(AbsXml.class);
             xstream.ignoreUnknownElements();
+            xstream.allowTypes(new Class[]{AbsXml.class});
             if (xml.contains("<year></year>")) {
                 xml = xml.replace("<year></year>", "<year>0</year>");
             }
